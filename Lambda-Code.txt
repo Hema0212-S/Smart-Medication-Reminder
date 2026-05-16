@@ -1,0 +1,59 @@
+import json
+import boto3
+from datetime import datetime
+
+# DynamoDB connection
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+
+# DynamoDB table
+table = dynamodb.Table('MedicineLogs')
+
+# SNS connection
+sns = boto3.client('sns', region_name='us-east-1')
+
+# Replace with your SNS Topic ARN
+TOPIC_ARN = 'arn:aws:sns:us-east-1:470390348653:MedicineAlerts'
+
+def lambda_handler(event, context):
+
+    print("Received event:", json.dumps(event))
+
+    # Get values from AWS IoT payload
+    slot = event.get('slot', 0)
+    status = event.get('status', 'unknown')
+
+    # Timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Store in DynamoDB
+    table.put_item(
+        Item={
+            'slot': int(slot),
+            'timestamp': timestamp,
+            'status': str(status)
+        }
+    )
+
+    print("Data stored successfully")
+
+    # SNS Notification Message
+    message = f"Medicine Slot {slot} status: {status} at {timestamp}"
+
+    # Send SNS Notification
+    sns.publish(
+        TopicArn=TOPIC_ARN,
+        Message=message,
+        Subject='Medicine Reminder Alert'
+    )
+
+    print("Notification sent successfully")
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'message': 'Data stored and notification sent successfully!',
+            'slot': slot,
+            'status': status,
+            'timestamp': timestamp
+        })
+    }
